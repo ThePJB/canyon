@@ -1,5 +1,6 @@
 export function GetContext(canvas) {
-    let gl = canvas.getContext('webgl');
+    console.log("initializing context");
+    let gl = canvas.getContext('webgl2');
 
     if (!gl) {
         console.error('Unable to initialize WebGL. Your browser may not support it.');
@@ -72,28 +73,30 @@ export function GetContext(canvas) {
         positionAttributeLocation,
         normalAttributeLocation,
         program,
-        draw: function(indexedMesh, camMat) {
+        indicesLength: 0,
+        setMesh: function(indexedMesh) {
+            // Update the VBO with new data
+            gl.bindBuffer(gl.ARRAY_BUFFER, this.vbo);
+            gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(indexedMesh.vertices), gl.STATIC_DRAW);
+            // Update the IBO with new data
+            gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.ibo);
+            gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint32Array(indexedMesh.indices), gl.STATIC_DRAW);
+            this.indicesLength = indexedMesh.indices.length;
+        },
+        draw: function(camMat) {
             const gl = this.gl;
             gl.viewport(0, 0, canvas.width, canvas.height);
             gl.useProgram(this.program);
             gl.uniformMatrix4fv(this.cameraMatrixLocation, false, camMat);
 
-            this.t += 0.01; // Increment t on each frame
-
-            // Update the VBO with new data
-            gl.bindBuffer(gl.ARRAY_BUFFER, this.vbo);
-            gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(indexedMesh.vertices), gl.STATIC_DRAW);
-
-            // Update the IBO with new data
-            gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.ibo);
-            gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(indexedMesh.indices), gl.STATIC_DRAW);
+            this.t += 0.05; // Increment t on each frame
 
             // Your drawing logic using indexed drawing
             gl.clearColor(0.8, 0.8, 0.8, 1.0);
             gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
             // Draw using indexed drawing
-            gl.drawElements(gl.TRIANGLES, indexedMesh.indices.length, gl.UNSIGNED_SHORT, 0);
+            gl.drawElements(gl.TRIANGLES, this.indicesLength, gl.UNSIGNED_INT, 0);
         }
     };
 }

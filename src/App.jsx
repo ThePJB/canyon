@@ -11,21 +11,8 @@ import alea from 'alea';
 // height is like noise times width thing
 // also varying lods yea
 
-function CalculateGeometry2(seed, t) {
-  const phase1 = t;
-  const phase2 = phase1 + 2*Math.PI/3;
-  const phase3 = phase2 + 2*Math.PI/3;
-  const vertices = [phase1, phase2, phase3].map((phase) => ({
-    x: Math.cos(phase),
-    y: Math.sin(phase),
-    z: 0.0,
-  }));
 
-  // Concatenate the x and y values into a flat array
-  return new Float32Array(vertices.flatMap((vertex) => [vertex.x, vertex.y, vertex.z]));
-}
-
-function GetFDMNormal(heightfn, x, z, epsilon = 0.001) {
+function GetFDMNormalOld(heightfn, x, z, epsilon = 0.001) {
   // Compute the height at the central point
   const centerHeight = heightfn(x, z);
 
@@ -38,6 +25,30 @@ function GetFDMNormal(heightfn, x, z, epsilon = 0.001) {
   // Compute partial derivatives using central differencing
   const dHeight_dx = (heightXPlus - heightXMinus) / (2 * epsilon);
   const dHeight_dz = (heightZPlus - heightZMinus) / (2 * epsilon);
+
+  // The normal vector is the negative gradient of the height function
+  const normal = [-dHeight_dx, 1, -dHeight_dz];
+  
+  // Normalize the normal vector
+  const length = Math.sqrt(normal[0] ** 2 + normal[1] ** 2 + normal[2] ** 2);
+  normal[0] /= length;
+  normal[1] /= length;
+  normal[2] /= length;
+
+  return normal;
+}
+
+function GetFDMNormal(heightfn, x, z, epsilon = 0.001) {
+  // Compute the height at the central point
+  const centerHeight = heightfn(x, z);
+
+  // Compute heights at neighboring points
+  const heightXPlus = heightfn(x + epsilon, z);
+  const heightZPlus = heightfn(x, z + epsilon);
+
+  // Compute partial derivatives using central differencing
+  const dHeight_dx = (heightXPlus - centerHeight) / epsilon;
+  const dHeight_dz = (heightZPlus - centerHeight) / epsilon;
 
   // The normal vector is the negative gradient of the height function
   const normal = [-dHeight_dx, 1, -dHeight_dz];
@@ -75,77 +86,16 @@ function CreateHeightmapMesh(heightfn, xmin, xmax, numx, zmin, zmax, numz) {
   return { vertices, indices };
 }
 
-function CreateTestTriangleMesh() {
-  // Define vertices with 3D positions and normals as a flat array
-  const vertices = [
-    // Vertex 0
-    -1, -1, 0,  // x, y, z
-    0, 0, 1,    // normal x, normal y, normal z
-
-    // Vertex 1
-    1, -1, 0,
-    0, 0, 1,
-
-    // Vertex 2
-    0, 1, 0,
-    0, 0, 1,
-  ];
-
-  // Define triangle indices
-  const indices = [0, 1, 2];
-
-  return { vertices, indices };
-}
-
-function CreateRotatedTriangleMesh(t) {
-  // Define vertices with 3D positions and normals as a flat array
-  const angle = t; // Rotation angle in radians
-
-  const cosTheta = Math.cos(angle);
-  const sinTheta = Math.sin(angle);
-
-  const vertices = [
-    // Vertex 0
-    -1 * cosTheta,  // x
-    -1,             // y
-    -1 * sinTheta,  // z
-    sinTheta,       // normal x
-    0,              // normal y
-    cosTheta,       // normal z
-
-    // Vertex 1
-    1 * cosTheta,
-    -1,
-    1 * sinTheta,
-    sinTheta,
-    0,
-    cosTheta,
-
-    // Vertex 2
-    0 * cosTheta,
-    1,
-    0 * sinTheta,
-    sinTheta,
-    0,
-    cosTheta,
-  ];
-
-  // Define triangle indices
-  const indices = [0, 1, 2];
-
-  return { vertices, indices };
-}
-
 // Example height function
-// ok its a bit retarded and also we need to switch to indexed drawing
 function heightFunction(x, z) {
-  return Math.sin(x) * Math.cos(z);
+  return Math.cos(z)*Math.cos(x*z);
 }
 
 const hft = (t, x, z) => heightFunction(x+t*2, z+t*4);
 
 function CalculateGeometry(seed, t) {
-  const result = CreateHeightmapMesh((x,z) => hft(t, x, z), -10, 10, 50, -10, 10, 50);
+  const d = 8;
+  const result = CreateHeightmapMesh((x,z) => hft(0, x, z), -d, d, 200, -d, d, 200);
   //const result = CreateRotatedTriangleMesh(t);
   return result;
 }
@@ -156,8 +106,8 @@ function CalculateGeometry(seed, t) {
 function GetCamera(t) {
   // lets zoom in -z
   return cam_vp(
-    [0, -4, 8],
-    normalize([0, 1, -1]),
+    [-10*Math.cos(t), -8, -10*Math.sin(t)],
+    normalize([Math.cos(t), 2, Math.sin(t)]),
     2,
     1,
     0.01,
@@ -165,29 +115,19 @@ function GetCamera(t) {
   );
 }
 
-function GetCamera2(t) {
-  // lets zoom in -z
-  return [
-    1, 0, 0, 0,
-    0, 1, 0, 0,
-    0, 0, 1, 0,
-    0, 0, 0, 1
-  ]
-  ;
-}
-
 function WebGLCanvas() {
   const canvasRef = useRef(null);
 
   useEffect(() => {
     let context = GetContext(canvasRef.current);
+    const geometry = CalculateGeometry(69, context.t);
+    context.setMesh(geometry);
     draw(context);
   }, []);
 
   const draw = (context) => {
-    const geometry = CalculateGeometry(69, context.t);
-    const cameraMatrix = GetCamera();
-    context.draw(geometry, cameraMatrix);
+    const cameraMatrix = GetCamera(context.t);
+    context.draw(cameraMatrix);
     requestAnimationFrame(() => draw(context));
   };
 
