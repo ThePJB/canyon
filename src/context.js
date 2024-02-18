@@ -89,7 +89,7 @@ export function GetContext(canvas) {
             gl.useProgram(this.program);
             gl.uniformMatrix4fv(this.cameraMatrixLocation, false, camMat);
 
-            this.t += 0.05; // Increment t on each frame
+            this.t += 0.005; // Increment t on each frame
 
             // Your drawing logic using indexed drawing
             gl.clearColor(0.8, 0.8, 0.8, 1.0);
